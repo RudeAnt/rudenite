@@ -2,12 +2,54 @@ import Phaser from 'phaser';
 import { CONFIG } from './config';
 import { screenDirToWorld, screenToWorld } from './world/iso';
 
+export type Action = 'attack';
+
+// Буфер нажатий. Браузерные события копятся в raw между кадрами логики
+// (ничего не теряется при slow-mo, паузе и хитстопе), а на кадре логики
+// переходят в буфер, где живут CONFIG.input.bufferFrames кадров или пока
+// их не «съест» автомат игрока. Несколько нажатий одного действия
+// между двумя кадрами логики считаются одним.
+export class ActionBuffer {
+  private raw = new Set<Action>();
+  private ages = new Map<Action, number>(); // действие → возраст в кадрах логики
+
+  press(a: Action): void {
+    this.raw.add(a);
+  }
+
+  // Ровно раз за кадр логики (не вызывается во время хитстопа — буфер не стареет).
+  advance(): void {
+    for (const [a, age] of this.ages) {
+      if (age + 1 > CONFIG.input.bufferFrames) this.ages.delete(a);
+      else this.ages.set(a, age + 1);
+    }
+    for (const a of this.raw) this.ages.set(a, 0);
+    this.raw.clear();
+  }
+
+  consume(a: Action): boolean {
+    return this.ages.delete(a);
+  }
+
+  clear(): void {
+    this.raw.clear();
+    this.ages.clear();
+  }
+
+  describe(): string {
+    const parts = [...this.ages].map(([a, age]) => `${a} ${age}/${CONFIG.input.bufferFrames}`);
+    if (this.raw.size) parts.push(`ждут тика: ${[...this.raw].join(',')}`);
+    return parts.length ? parts.join('  ') : '—';
+  }
+}
+
 // Снимок ввода на один кадр логики. Всё уже в мировых координатах.
 export interface InputFrame {
   moveX: number; // единичный вектор движения (или 0,0)
   moveY: number;
   aimAngle: number; // угол от игрока к курсору, радианы, в мире
   aimSector: number; // 0..N-1
+  actions: ActionBuffer; // нажатия; автомат забирает их через consume()
 }
 
 export function angleToSector(angle: number): number {
@@ -17,7 +59,10 @@ export function angleToSector(angle: number): number {
   return Math.floor(a / size) % n;
 }
 
+const MOUSE_RIGHT = 2; // PointerEvent.button
+
 export class Input {
+  readonly actions = new ActionBuffer();
   private keys: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
 
   constructor(private scene: Phaser.Scene) {
@@ -29,9 +74,17 @@ export class Input {
       left: kb.addKey(K.A),
       right: kb.addKey(K.D),
     };
+
+    scene.input.mouse?.disableContextMenu();
+    scene.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
+      if (p.button === MOUSE_RIGHT) this.actions.press('attack');
+    });
   }
 
+  // Ровно раз за кадр логики (кроме кадров хитстопа).
   sample(playerX: number, playerY: number): InputFrame {
+    this.actions.advance();
+
     // WASD — относительно экрана: W ведёт вверх по экрану.
     const dx = (this.keys.right.isDown ? 1 : 0) - (this.keys.left.isDown ? 1 : 0);
     const dy = (this.keys.down.isDown ? 1 : 0) - (this.keys.up.isDown ? 1 : 0);
@@ -43,6 +96,6 @@ export class Input {
     const cursor = screenToWorld(scenePt.x, scenePt.y);
     const aimAngle = Math.atan2(cursor.y - playerY, cursor.x - playerX);
 
-    return { moveX: move.x, moveY: move.y, aimAngle, aimSector: angleToSector(aimAngle) };
+    return { moveX: move.x, moveY: move.y, aimAngle, aimSector: angleToSector(aimAngle), actions: this.actions };
   }
 }

@@ -1,7 +1,14 @@
 import Phaser from 'phaser';
+import type { Boss } from './boss';
 import { CONFIG } from './config';
 import type { Player } from './player';
-import { worldToScreen } from './world/iso';
+import { floorArc, worldToScreen } from './world/iso';
+
+export interface DebugInfo {
+  tick: number;
+  hitstop: number; // сколько кадров хитстопа осталось
+  buffer: string; // содержимое буфера ввода
+}
 
 // F1 — оверлей, F2 — slow-motion, F3 — пауза, F4 — шаг на один кадр (на паузе).
 export class Debug {
@@ -32,7 +39,7 @@ export class Debug {
       .setScrollFactor(0)
       .setDepth(100);
     this.hint = scene.add
-      .text(v.debugMargin, v.debugMargin, 'WASD — бег · F1 — debug', { ...style, color: v.hintTextColor })
+      .text(v.debugMargin, v.debugMargin, 'WASD — бег · ПКМ — удар · R — рестарт · F1 — debug', { ...style, color: v.hintTextColor })
       .setScrollFactor(0)
       .setDepth(100);
   }
@@ -50,41 +57,46 @@ export class Debug {
     return this.slowMo ? CONFIG.sim.slowMoScale : 1;
   }
 
-  draw(g: Phaser.GameObjects.Graphics, player: Player, tick: number): void {
+  // Всё рисуется по реальной позиции логики, без сглаживания.
+  draw(g: Phaser.GameObjects.Graphics, player: Player, boss: Boss, info: DebugInfo): void {
     this.text.setVisible(this.enabled);
     this.hint.setVisible(!this.enabled);
     if (!this.enabled) return;
     const v = CONFIG.view;
+    const center = worldToScreen(player.x, player.y);
 
     // Сектор прицела: клин на полу.
     const n = CONFIG.aim.sectors;
     const size = (Math.PI * 2) / n;
     const from = player.aimSector * size - size / 2;
-    const pts = [worldToScreen(player.x, player.y)];
-    for (let i = 0; i <= v.debugSectorSteps; i++) {
-      const a = from + (size * i) / v.debugSectorSteps;
-      pts.push(worldToScreen(player.x + Math.cos(a) * v.debugSectorRadius, player.y + Math.sin(a) * v.debugSectorRadius));
-    }
     g.fillStyle(v.debugSector, v.debugSectorAlpha);
-    g.fillPoints(pts, true);
+    g.fillPoints([center, ...floorArc(player.x, player.y, v.debugSectorRadius, from, from + size, v.debugSectorSteps)], true);
 
-    // Хитбокс игрока: круг в мире (на экране — эллипс). Рисуем по реальной позиции, без сглаживания.
-    const circle = [];
-    for (let i = 0; i < v.debugCircleSteps; i++) {
-      const a = (Math.PI * 2 * i) / v.debugCircleSteps;
-      circle.push(worldToScreen(player.x + Math.cos(a) * CONFIG.player.radius, player.y + Math.sin(a) * CONFIG.player.radius));
+    // Дуга удара: серая в startup/recovery, красная в active.
+    const phase = player.attackPhase;
+    if (phase) {
+      const half = Phaser.Math.DegToRad(CONFIG.player.attack.arc) / 2;
+      const arc = floorArc(player.x, player.y, CONFIG.player.attack.range, player.attackAngle - half, player.attackAngle + half, v.swingSteps);
+      g.lineStyle(phase === 'active' ? 2 : 1, phase === 'active' ? v.debugAttackActive : v.debugAttackInactive, 1);
+      g.strokePoints([center, ...arc], true);
     }
+
+    // Хитбокс игрока и хёртбокс босса: круги в мире (на экране — эллипсы).
     g.lineStyle(1, v.debugHitbox, 1);
-    g.strokePoints(circle, true);
+    g.strokePoints(floorArc(player.x, player.y, CONFIG.player.radius, 0, Math.PI * 2, v.debugCircleSteps), true);
+    g.lineStyle(1, v.debugHurtbox, 1);
+    g.strokePoints(floorArc(boss.x, boss.y, CONFIG.boss.radius, 0, Math.PI * 2, v.debugCircleSteps), true);
 
     const mode = this.paused ? 'ПАУЗА (F4 — шаг)' : this.slowMo ? `SLOW x${CONFIG.sim.slowMoScale}` : 'x1';
     this.text.setText(
       [
-        `DEBUG  [F1 оверлей] [F2 slow-mo] [F3 пауза] [F4 шаг]`,
-        `время: ${mode}   кадр логики: ${tick}   fps: ${Math.round(this.scene.game.loop.actualFps)}`,
-        `player: ${player.state}  кадр в состоянии: ${player.stateFrame}`,
+        `DEBUG  [F1 оверлей] [F2 slow-mo] [F3 пауза] [F4 шаг] [R рестарт]`,
+        `время: ${mode}   кадр логики: ${info.tick}   fps: ${Math.round(this.scene.game.loop.actualFps)}`,
+        `хитстоп: ${info.hitstop}   буфер: ${info.buffer}`,
+        `player: ${player.state}${phase ? ` (${phase})` : ''}  кадр в состоянии: ${player.stateFrame}`,
         `pos: ${player.x.toFixed(0)}, ${player.y.toFixed(0)}`,
         `aim: ${Phaser.Math.RadToDeg(player.aimAngle).toFixed(0)}°  сектор ${player.aimSector}/${n}`,
+        `boss: ${boss.state}  кадр: ${boss.stateFrame}  hp ${boss.hp}/${CONFIG.boss.hp}  posture ${boss.posture.toFixed(1)}/${CONFIG.boss.postureMax}  без урона: ${boss.framesSinceDamage}`,
       ].join('\n'),
     );
   }

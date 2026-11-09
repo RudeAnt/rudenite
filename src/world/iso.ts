@@ -28,3 +28,13 @@ export function screenDirToWorld(dx: number, dy: number): Vec2 {
   const len = Math.hypot(x, y);
   return len === 0 ? { x: 0, y: 0 } : { x: x / len, y: y / len };
 }
+
+// Дуга круга на полу (мир) → точки на экране. Для секторов и окружностей.
+export function floorArc(cx: number, cy: number, radius: number, from: number, to: number, steps: number): Vec2[] {
+  const pts: Vec2[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const a = from + ((to - from) * i) / steps;
+    pts.push(worldToScreen(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius));
+  }
+  return pts;
+}

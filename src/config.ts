@@ -20,6 +20,40 @@ export const CONFIG = {
   player: {
     radius: 18, // радиус коллизии (круг на полу), мир. ед.
     speed: 4.5, // скорость бега, мир. ед. за кадр
+    spawnX: 630, // старт: на экране прямо под боссом
+    spawnY: 630,
+    attack: {
+      startup: 6, // кадров замаха до удара
+      active: 4, // кадров, когда удар может попасть
+      recovery: 14, // кадров восстановления (стоим, но нажатие уже буферизуется)
+      range: 70, // дальность дуги удара от центра игрока, мир. ед.
+      arc: 100, // ширина дуги удара, градусы
+      damage: 10, // урон по HP босса
+      postureDamage: 10, // урон по posture босса
+    },
+  },
+
+  boss: {
+    spawnX: 450, // центр арены
+    spawnY: 450,
+    radius: 40, // хёртбокс и коллизия, мир. ед.
+    hp: 200,
+    postureMax: 100,
+    // Регенерация posture: через postureRegenDelay кадров без урона — postureRegenRate за кадр.
+    // Спам обычных ударов НЕ должен заполнять шкалу: за цикл атаки игрока
+    // (startup+active+recovery = 24 кадра) регенерация (24-8)*0.65 = 10.4 > postureDamage 10.
+    // Если нарушить это условие — в консоли будет предупреждение.
+    postureRegenDelay: 8,
+    postureRegenRate: 0.65,
+    hurtFrames: 10, // длительность вспышки при попадании
+  },
+
+  combat: {
+    hitstopFrames: 3, // заморозка логики при попадании, кадров
+  },
+
+  input: {
+    bufferFrames: 8, // сколько кадров живёт нажатие, если действие пока недоступно
   },
 
   aim: {
@@ -41,10 +75,32 @@ export const CONFIG = {
     playerShadowAlpha: 0.35,
     playerBodyWidth: 22, // px
     playerBodyHeight: 44, // px
+    bossBody: 0xe57373,
+    bossHurt: 0xffffff,
+    bossDead: 0x5c6370,
+    bossBodyWidth: 46, // px
+    bossBodyHeight: 80, // px
+    bossDeadHeight: 18, // px
+    swingColor: 0xffffff, // след удара в active-кадрах
+    swingAlpha: 0.35,
+    swingSteps: 10, // сегментов в дуге удара
+    hudBarWidth: 360, // px
+    hudBarHeight: 10, // px
+    hudBarGap: 6, // px между шкалами
+    hudTop: 40, // px от верха экрана
+    hudBarBg: 0x000000,
+    hudBarBgAlpha: 0.5,
+    hudHp: 0xe53935,
+    hudPosture: 0xffb300,
+    hudTextColor: '#ffffff',
+    hudFontSize: 20, // px
     aimMarker: 0xffffff,
     aimMarkerDist: 34, // мир. ед. от центра игрока
     aimMarkerSize: 4, // px
     debugHitbox: 0x00ff66,
+    debugHurtbox: 0x40c4ff,
+    debugAttackInactive: 0x888888, // дуга удара в startup/recovery
+    debugAttackActive: 0xff1744, // дуга удара в active
     debugSector: 0xffd54f,
     debugSectorAlpha: 0.18,
     debugSectorRadius: 90, // мир. ед.
