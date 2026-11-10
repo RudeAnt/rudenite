@@ -4,11 +4,11 @@ import { screenDirToWorld, screenToWorld } from './world/iso';
 
 export type Action = 'attack';
 
-// Буфер нажатий. Браузерные события копятся в raw между кадрами логики
-// (ничего не теряется при slow-mo, паузе и хитстопе), а на кадре логики
-// переходят в буфер, где живут CONFIG.input.bufferFrames кадров или пока
-// их не «съест» автомат игрока. Несколько нажатий одного действия
-// между двумя кадрами логики считаются одним.
+// Буфер нажатий. Браузерные события копятся в raw между реальными кадрами
+// (ничего не теряется при slow-mo и паузе), а на реальном кадре переходят в буфер,
+// где живут CONFIG.input.bufferFrames РЕАЛЬНЫХ кадров (хитстоп-замедление их не растягивает)
+// или пока их не «съест» автомат игрока на кадре логики. Несколько нажатий одного
+// действия между двумя реальными кадрами считаются одним.
 export class ActionBuffer {
   private raw = new Set<Action>();
   private ages = new Map<Action, number>(); // действие → возраст в кадрах логики
@@ -17,7 +17,7 @@ export class ActionBuffer {
     this.raw.add(a);
   }
 
-  // Ровно раз за кадр логики (не вызывается во время хитстопа — буфер не стареет).
+  // Ровно раз за реальный кадр.
   advance(): void {
     for (const [a, age] of this.ages) {
       if (age + 1 > CONFIG.input.bufferFrames) this.ages.delete(a);
@@ -83,10 +83,8 @@ export class Input {
     });
   }
 
-  // Ровно раз за кадр логики (кроме кадров хитстопа).
+  // Ровно раз за кадр логики. Буфер стареет отдельно — в реальных кадрах (scene.realTick).
   sample(playerX: number, playerY: number): InputFrame {
-    this.actions.advance();
-
     // WASD — относительно экрана: W ведёт вверх по экрану.
     const dx = (this.keys.right.isDown ? 1 : 0) - (this.keys.left.isDown ? 1 : 0);
     const dy = (this.keys.down.isDown ? 1 : 0) - (this.keys.up.isDown ? 1 : 0);
