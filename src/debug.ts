@@ -39,7 +39,7 @@ export class Debug {
       .setScrollFactor(0)
       .setDepth(100);
     this.hint = scene.add
-      .text(v.debugMargin, v.debugMargin, 'WASD — бег · ПКМ — удар · R — рестарт · F1 — debug', { ...style, color: v.hintTextColor })
+      .text(v.debugMargin, v.debugMargin, 'WASD — бег · E — удар · R — рестарт · F1 — debug', { ...style, color: v.hintTextColor })
       .setScrollFactor(0)
       .setDepth(100);
   }

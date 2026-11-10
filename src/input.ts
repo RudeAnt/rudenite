@@ -59,8 +59,6 @@ export function angleToSector(angle: number): number {
   return Math.floor(a / size) % n;
 }
 
-const MOUSE_RIGHT = 2; // PointerEvent.button
-
 export class Input {
   readonly actions = new ActionBuffer();
   private keys: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
@@ -75,10 +73,12 @@ export class Input {
       right: kb.addKey(K.D),
     };
 
+    // Атака — E. Автоповтор при удержании не срабатывает (Key.emitOnRepeat = false).
+    kb.addKey(K.E).on(Phaser.Input.Keyboard.Events.DOWN, () => this.actions.press('attack'));
+
+    // ПКМ ничего не делает, но контекстное меню браузера поверх игры
+    // съедает отпускание клавиш (залипает WASD) — поэтому оставляем подавление.
     scene.input.mouse?.disableContextMenu();
-    scene.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
-      if (p.button === MOUSE_RIGHT) this.actions.press('attack');
-    });
   }
 
   // Ровно раз за кадр логики (кроме кадров хитстопа).
